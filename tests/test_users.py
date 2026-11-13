@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.router.users import router
 from app.router.auth import router as auth_router
+from app.router.thread import router as thread_router
 from app.router.errors import ERROR_RESPONSES, configure_api
 from app.db.base import Base
 from app.db.database import get_db
@@ -45,6 +46,7 @@ class UserAPITests(unittest.IsolatedAsyncioTestCase):
         configure_api(self.app)
         self.app.include_router(router)
         self.app.include_router(auth_router)
+        self.app.include_router(thread_router)
 
         async def database_override():
             async with self.sessions() as session:
@@ -293,3 +295,73 @@ class UserAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Access-Control-Allow-Origin", response.headers)
         response = await self.client.get("/users", headers={"Origin": "https://unlisted.example.com"})
         self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+
+    async def test_thread_crud_and_filtering(self):
+        user = await self.create_user()
+        other = await self.create_user("other@example.com")
+        created = []
+        for owner in (user, user, other):
+            response = await self.client.post("/thread", json={"user_id": owner["id"], "title": "New thread"})
+            self.assertEqual(response.status_code, 201, response.text)
+            thread = response.json()
+            self.assertEqual(thread["user_id"], owner["id"])
+            self.assertTrue(thread["created_at"])
+            self.assertTrue(thread["updated_at"])
+            created.append(thread)
+        response = await self.client.get("/thread", params={"user_id": user["id"]})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item["id"] for item in response.json()}, {item["id"] for item in created[:2]})
+        self.assertEqual(len((await self.client.get("/thread?limit=1&offset=1")).json()), 1)
+        path = "/thread/" + created[0]["id"]
+        self.assertEqual((await self.client.get(path)).json(), created[0])
+        response = await self.client.patch(path, json={"title": "Renamed"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["title"], "Renamed")
+        self.assertEqual(response.json()["created_at"], created[0]["created_at"])
+        self.assertEqual(response.json()["user_id"], user["id"])
+        response = await self.client.patch(path, json={"title": None})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["title"])
+        self.assertEqual((await self.client.delete(path)).status_code, 204)
+        self.assertEqual((await self.client.get(path)).status_code, 404)
+        self.assertEqual((await self.client.get("/users/" + user["id"])).status_code, 200)
+
+    async def test_deleting_user_removes_all_their_threads_only(self):
+        user = await self.create_user()
+        other = await self.create_user("other@example.com")
+        ids = []
+        for owner in (user, user, other):
+            response = await self.client.post("/thread", json={"user_id": owner["id"], "title": "Cascade test"})
+            self.assertEqual(response.status_code, 201)
+            ids.append(response.json()["id"])
+        self.assertEqual((await self.client.delete("/users/" + user["id"])).status_code, 204)
+        for thread_id in ids[:2]:
+            self.assertEqual((await self.client.get("/thread/" + thread_id)).status_code, 404)
+        self.assertEqual((await self.client.get("/thread/" + ids[2])).status_code, 200)
+        self.assertEqual((await self.client.get("/thread", params={"user_id": user["id"]})).json(), [])
+        async with self.sessions() as session:
+            self.assertEqual(list(await session.scalars(select(Thread.id))), [UUID(ids[2])])
+
+    async def test_thread_validation_missing_owner_and_missing_thread(self):
+        response = await self.client.post("/thread", json={"user_id": str(uuid4()), "title": "Test"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "User not found")
+        user = await self.create_user()
+        for payload in [
+            {"user_id": "invalid", "title": "Test"},
+            {"title": "Test"},
+            {"user_id": user["id"], "title": ""},
+            {"user_id": user["id"], "title": "a" * 256},
+            {"user_id": user["id"], "title": "Test", "created_at": "2020-01-01T00:00:00Z"},
+        ]:
+            self.assertEqual((await self.client.post("/thread", json=payload)).status_code, 422)
+        for query in ("user_id=invalid", "limit=101", "offset=-1"):
+            self.assertEqual((await self.client.get("/thread?" + query)).status_code, 422)
+        self.assertEqual((await self.client.get("/thread/invalid")).status_code, 422)
+        path = "/thread/" + str(uuid4())
+        self.assertEqual((await self.client.get(path)).status_code, 404)
+        self.assertEqual((await self.client.patch(path, json={"title": "Missing"})).status_code, 404)
+        self.assertEqual((await self.client.delete(path)).status_code, 404)
+        thread = (await self.client.post("/thread", json={"user_id": user["id"], "title": "Test"})).json()
+        response = await self.client.patch("/thread/" + thread["id"], json={"user_id": str(uuid4())})
+        self.assertEqual(response.status_code, 422)

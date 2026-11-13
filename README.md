@@ -4,7 +4,7 @@ A simple FastAPI backend for a chatbot API.
 
 ## Project structure
 
-- `app/router/`: user routes, authentication routes, and shared API middleware/error handlers.
+- `app/router/`: infrastructure health checks (`infra.py`), chat (`chat.py`), users, authentication, and shared API middleware/error handlers.
 - `app/schema/`: request and response schemas, grouped into `users.py`, `auth.py`, `chat.py`, and `errors.py`.
 - `app/models/`: SQLAlchemy database models.
 - `app/config/`: application configuration and prompts.
@@ -196,6 +196,39 @@ docker compose build backend
 docker compose run --rm backend alembic upgrade head
 docker compose up -d backend
 ```
+
+### Threads
+
+Each thread belongs to a user through its required UUID `user_id`.
+
+| Method | Path | Action |
+| --- | --- | --- |
+| POST | `/thread` | Create a thread for an existing user |
+| GET | `/thread?user_id={user_id}&offset=0&limit=20` | List threads, optionally filtered by user |
+| GET | `/thread/{thread_id}` | Get a thread |
+| PATCH | `/thread/{thread_id}` | Update the title |
+| DELETE | `/thread/{thread_id}` | Delete a thread |
+
+Create a thread using the ID returned by the user API:
+
+```json
+{
+  "user_id": "00000000-0000-4000-8000-000000000000",
+  "title": "My first conversation"
+}
+```
+
+The database generates IDs and timestamps; they cannot be supplied in requests.
+Creating a thread for an unknown user returns `404`, unknown thread IDs return
+`404`, and invalid UUIDs or request fields return `422`. Titles contain 1–255
+characters; PATCH may set `title` to `null` to clear it. The owner cannot be
+changed through PATCH. Listing supports a maximum limit of 100; an unmatched
+user filter returns an empty list.
+
+Deleting a user automatically deletes **all** their threads through the existing
+database foreign key's `ON DELETE CASCADE`. Deleting a thread keeps its user.
+No additional database migration is needed. Thread endpoints are public, like
+the existing user endpoints.
 
 ### POST /chat
 
