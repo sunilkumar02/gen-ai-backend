@@ -25,7 +25,11 @@ router = APIRouter(prefix="/invoke")
 
 app.include_router(router)
 
-model = ChatOpenAI(model_name="gpt-6-luna", openai_api_key=openai_api_key)
+model = (
+    ChatOpenAI(model_name="gpt-6-luna", openai_api_key=openai_api_key)
+    if openai_api_key
+    else None
+)
 
 @app.get("/health")
 async def health_check():
@@ -47,6 +51,12 @@ async def database_health():
 
 @app.post("/chat")
 async def chat(input: str, languageType: str = "Kannada"):
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Chat service is not configured. Set OPENAI_API_KEY and restart the backend.",
+        )
+
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", "You are an Kannada AI assistant and your name is Sunil, And translate all the text to {languageType}."),
         ("human", "{input}"),
