@@ -60,6 +60,7 @@ alembic downgrade base
 Run migration and model regression tests against an in-memory database:
 
 ```bash
+python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ```
 
@@ -79,7 +80,114 @@ docker compose up
 
 The FastAPI app will be available at `http://localhost:8000` and the automatic docs at `http://localhost:8000/docs`.
 
+## Frontend CORS
+
+The backend allows `http://localhost:3000` and `http://127.0.0.1:3000` by default.
+Other frontend origins can be configured in `.env` as a comma-separated list:
+
+```dotenv
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://your-frontend.example.com
+```
+
+Origins include the scheme, hostname, and port. After changing this setting,
+recreate the backend with `docker compose up -d --force-recreate backend`.
+CORS applies to successful responses, API errors, and preflight requests. The
+frontend can read `X-Request-ID` when reporting an API error.
+
 ## API
+
+### Authentication check
+
+`POST /auth/login` accepts JSON with `username` (the existing user's email) and
+`password` (the standard Base64 encoding of their UTF-8 password):
+
+```json
+{
+  "username": "user@example.com",
+  "password": "RXhhbXBsZS1wYXNzd29yZC0xMjMh"
+}
+```
+
+The example password encodes `Example-password-123!`. A valid email/password pair
+returns `200` with the same public user fields as `GET /users/{user_id}`. Wrong
+passwords and missing accounts both return `403` with `Invalid username or
+password`. Invalid Base64, invalid UTF-8, or malformed request bodies return
+`422`. Existing users without a password hash cannot authenticate until their
+password is set through the user update endpoint.
+
+This endpoint only verifies credentials; it does not issue tokens, create a
+session, or restrict the other endpoints. Base64 is an encoding; use HTTPS when
+sending credentials to a deployed backend.
+
+### Errors and request logs
+
+All API errors use a common response format. The `detail` field is retained for
+existing clients, and `X-Request-ID` matches the response's `request_id`:
+
+```json
+{
+  "detail": "Invalid username or password",
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Invalid username or password",
+    "details": []
+  },
+  "request_id": "00000000-0000-4000-8000-000000000000"
+}
+```
+
+Validation errors include field locations, messages, and types, without submitted
+values. Database failures return sanitized `409` or `503` errors, and unexpected
+failures return a generic `500` error. Responses never include exception messages
+or SQL parameters for internal failures.
+
+The backend writes JSON request/error logs to standard error, available through:
+
+```bash
+docker compose logs -f backend
+```
+
+Request logs contain a request ID, method, route template, status, and duration.
+Error logs add safe exception types and stack frame locations. Request bodies,
+headers, query strings, passwords, hashes, and raw exception messages are excluded.
+The default Uvicorn access logger is disabled to avoid logging query strings.
+
+### Users
+
+User CRUD endpoints are public; they do not require authentication.
+
+| Method | Path | Action |
+| --- | --- | --- |
+| POST | `/users` | Create a user |
+| GET | `/users?offset=0&limit=20` | List users (maximum limit: 100) |
+| GET | `/users/{user_id}` | Get a user |
+| PATCH | `/users/{user_id}` | Update email, name, or password |
+| DELETE | `/users/{user_id}` | Delete the user and their threads |
+
+Create a user with a JSON request body:
+
+```json
+{
+  "email": "user@example.com",
+  "name": "Example User",
+  "password": "Example-password-123!"
+}
+```
+
+Email is validated and stored in lowercase. Duplicate email addresses return
+`409`, unknown user IDs return `404`, and invalid input returns `422`.
+Passwords must contain 12–128 characters and are stored as Argon2 hashes;
+responses never include the password or its hash. Existing users are retained
+by migration `0003`, with an unset password until updated. A PATCH request may
+set `name` to `null`; email and password cannot be set to `null`.
+
+Apply the migration and rebuild the running backend after installing dependencies:
+
+```bash
+docker compose build backend
+docker compose run --rm backend alembic upgrade head
+docker compose up -d backend
+```
 
 ### POST /chat
 

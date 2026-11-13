@@ -8,7 +8,7 @@ from uuid import uuid4
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, delete, event, inspect, select
+from sqlalchemy import create_engine, delete, event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -32,7 +32,13 @@ class DatabaseTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("initial_migration", path)
         self.migration = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.migration)
+        spec = importlib.util.spec_from_file_location(
+            "password_migration", path.parent / "0003_add_user_password.py"
+        )
+        self.password_migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.password_migration)
         self.run_migration(self.migration.upgrade)
+        self.run_migration(self.password_migration.upgrade)
 
     def run_migration(self, operation):
         with self.engine.begin() as connection:
@@ -46,9 +52,11 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(differences, [])
 
+        self.run_migration(self.password_migration.downgrade)
         self.run_migration(self.migration.downgrade)
         self.assertEqual(inspect(self.engine).get_table_names(), [])
         self.run_migration(self.migration.upgrade)
+        self.run_migration(self.password_migration.upgrade)
         self.assertEqual(
             set(inspect(self.engine).get_table_names()), {"users", "threads"}
         )
@@ -75,6 +83,20 @@ class DatabaseTests(unittest.TestCase):
             session.execute(delete(User).where(User.id == user_id))
             session.commit()
             self.assertEqual(session.scalars(select(Thread)).all(), [])
+
+    def test_password_migration_preserves_existing_users(self):
+        self.run_migration(self.password_migration.downgrade)
+        user_id = uuid4()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO users (id, email) VALUES (:id, :email)"),
+                {"id": user_id.hex, "email": "legacy@example.com"},
+            )
+        self.run_migration(self.password_migration.upgrade)
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            self.assertEqual(user.email, "legacy@example.com")
+            self.assertIsNone(user.password_hash)
 
     def test_email_unique_and_thread_owner_required(self):
         with Session(self.engine) as session:

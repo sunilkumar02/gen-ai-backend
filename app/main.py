@@ -7,11 +7,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.database import engine
+from app.api.users import router as users_router
+from app.api.auth import router as auth_router
+from app.api.errors import ERROR_RESPONSES, configure_api
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from config.prompt.system_prompt import SYSTEM_PROMPT
+from app.config.prompt.system_prompt import SYSTEM_PROMPT
 
 load_dotenv()
 
@@ -20,10 +23,13 @@ logger = logging.getLogger(__name__)
 openai_api_key = os.getenv("OPENAI_API_KEY")
 groq_api_key = os.getenv("GROQ_API_KEY")
 
-app = FastAPI(title="AI Chatbot", description="A simple AI chatbot using LangChain and Groq.", version="1.0.0")
+app = FastAPI(title="AI Chatbot", description="A simple AI chatbot using LangChain and Groq.", version="1.0.0", responses=ERROR_RESPONSES)
+configure_api(app)
 router = APIRouter(prefix="/invoke")
 
 app.include_router(router)
+app.include_router(users_router)
+app.include_router(auth_router)
 
 model = (
     ChatOpenAI(model_name="gpt-6-luna", openai_api_key=openai_api_key)
