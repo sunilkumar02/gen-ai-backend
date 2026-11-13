@@ -7,9 +7,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.database import engine
-from app.api.users import router as users_router
-from app.api.auth import router as auth_router
-from app.api.errors import ERROR_RESPONSES, configure_api
+from app.router.users import router as users_router
+from app.router.auth import router as auth_router
+from app.router.errors import ERROR_RESPONSES, configure_api
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate

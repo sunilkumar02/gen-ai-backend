@@ -8,7 +8,8 @@ from starlette.concurrency import run_in_threadpool
 from app.db.database import get_db
 from app.models import User
 from app.passwords import verify_password
-from app.schemas import LoginRequest, UserRead
+from app.schema.auth import LoginRequest
+from app.schema.users import UserRead
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

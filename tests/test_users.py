@@ -18,9 +18,9 @@ from pwdlib import PasswordHash
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.api.users import router
-from app.api.auth import router as auth_router
-from app.api.errors import ERROR_RESPONSES, configure_api
+from app.router.users import router
+from app.router.auth import router as auth_router
+from app.router.errors import ERROR_RESPONSES, configure_api
 from app.db.base import Base
 from app.db.database import get_db
 from app.models import Thread, User

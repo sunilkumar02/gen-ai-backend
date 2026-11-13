@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from app.db.database import get_db
 from app.models import User
 from app.passwords import password_hasher
-from app.schemas import UserCreate, UserRead, UserUpdate
+from app.schema.users import UserCreate, UserRead, UserUpdate
 
 Database = Annotated[AsyncSession, Depends(get_db)]
 

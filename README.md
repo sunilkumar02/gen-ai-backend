@@ -2,6 +2,14 @@
 
 A simple FastAPI backend for a chatbot API.
 
+## Project structure
+
+- `app/router/`: user routes, authentication routes, and shared API middleware/error handlers.
+- `app/schema/`: request and response schemas, grouped into `users.py`, `auth.py`, `chat.py`, and `errors.py`.
+- `app/models/`: SQLAlchemy database models.
+- `app/config/`: application configuration and prompts.
+- `app/db/`: database engine, sessions, and declarative base.
+
 ## Requirements
 
 - Python 3.11+

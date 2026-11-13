@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.schemas import APIErrorResponse
+from app.schema.errors import APIErrorResponse
 from app.config.config import CORS_ALLOWED_ORIGINS
 
 logger = logging.getLogger("app.api")
