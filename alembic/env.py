@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.core.config import DATABASE_URL
+from app.config.config import DATABASE_URL
 from app.db.base import Base
 from app.models import Thread, User  # noqa: F401 -- register model metadata
 

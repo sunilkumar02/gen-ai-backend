@@ -1,5 +1,15 @@
-"""Compatibility import for the original database settings location."""
+import os
 
-from app.core.config import DATABASE_URL
+from dotenv import load_dotenv
+from sqlalchemy import URL
 
-__all__ = ["DATABASE_URL"]
+load_dotenv()
+
+DATABASE_URL = URL.create(
+    drivername="postgresql+asyncpg",
+    username=os.environ["DB_USER"],
+    password=os.environ["DB_PASSWORD"],
+    host=os.environ["DB_HOST"],
+    port=int(os.getenv("DB_PORT", "5432")),
+    database=os.environ["DB_NAME"],
+)

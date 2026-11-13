@@ -11,7 +11,7 @@ from app.db.database import engine
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langserve import add_routes
+from config.prompt.system_prompt import SYSTEM_PROMPT
 
 load_dotenv()
 
@@ -50,7 +50,7 @@ async def database_health():
     return {"status": "ok", "database": "reachable"}
 
 @app.post("/chat")
-async def chat(input: str, languageType: str = "Kannada"):
+async def chat(input: str):
     if model is None:
         raise HTTPException(
             status_code=503,
@@ -58,7 +58,7 @@ async def chat(input: str, languageType: str = "Kannada"):
         )
 
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", "You are an Kannada AI assistant and your name is Sunil, And translate all the text to {languageType}."),
+        ("system", SYSTEM_PROMPT),
         ("human", "{input}"),
     ])
 
@@ -66,7 +66,7 @@ async def chat(input: str, languageType: str = "Kannada"):
 
     response = prompt_template | model | parsed
 
-    return {"response":  response.invoke({"input": input, "languageType": languageType})}
+    return {"response":  response.invoke({"input": input})}
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ python -m pip install -r requirements.txt
 ## Run
 
 Copy `.env.example` to `.env` and set your database credentials and API key.
-The application and Alembic share the settings in `app/core/config.py`.
+The application and Alembic share the settings in `app/config/config.py`.
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
