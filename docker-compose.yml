@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: local
+      POSTGRES_DB: chatbot_db
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  backend:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DB_USER: chatbot
+      DB_PASSWORD: local
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: chatbot_db
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: always
+    depends_on:
+      - postgres
+
+
+volumes:
+  postgres_data:
